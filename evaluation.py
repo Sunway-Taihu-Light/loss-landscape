@@ -33,6 +33,10 @@ def eval_loss(net, criterion, loader, use_cuda=False):
     with torch.no_grad():
         if isinstance(criterion, nn.CrossEntropyLoss):
             for batch_idx, (inputs, targets) in enumerate(loader):
+
+                # device = next(net.parameters()).device  # 获取模型所在设备
+                # inputs, targets = inputs.to(device), targets.to(device)
+
                 batch_size = inputs.size(0)
                 total += batch_size
                 inputs = Variable(inputs)
@@ -47,6 +51,10 @@ def eval_loss(net, criterion, loader, use_cuda=False):
 
         elif isinstance(criterion, nn.MSELoss):
             for batch_idx, (inputs, targets) in enumerate(loader):
+
+                # device = next(net.parameters()).device  # 获取模型所在设备
+                # inputs, targets = inputs.to(device), targets.to(device)
+
                 batch_size = inputs.size(0)
                 total += batch_size
                 inputs = Variable(inputs)

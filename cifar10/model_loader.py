@@ -39,19 +39,47 @@ models = {
 
 def load(model_name, model_file=None, data_parallel=False):
     net = models[model_name]()
-    if data_parallel: # the model is saved in data paralle mode
-        net = torch.nn.DataParallel(net)
+    # if data_parallel: # the model is saved in data paralle mode
+    #     net = torch.nn.DataParallel(net)
 
     if model_file:
-        assert os.path.exists(model_file), model_file + " does not exist."
-        stored = torch.load(model_file, map_location=lambda storage, loc: storage)
-        if 'state_dict' in stored.keys():
-            net.load_state_dict(stored['state_dict'])
-        else:
-            net.load_state_dict(stored)
+        # assert os.path.exists(model_file), model_file + " does not exist."
+        # stored = torch.load(model_file, map_location=lambda storage, loc: storage,weights_only=False)
+        # if 'state_dict' in stored.keys():
+        #     net.load_state_dict(stored['state_dict'])
+        # else:
+        #     net.load_state_dict(stored)
 
-    if data_parallel: # convert the model back to the single GPU version
-        net = net.module
+        assert os.path.exists(model_file), model_file + " does not exist."
+        checkpoint = torch.load(model_file, map_location=lambda storage, loc: storage,weights_only=False)
+        if 'state_dict' in checkpoint:
+            state_dict = checkpoint['state_dict']
+        elif 'net' in checkpoint:
+            state_dict = checkpoint['net']
+        elif 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
+    net.load_state_dict(state_dict)
+
+    # if data_parallel: # convert the model back to the single GPU version
+    #     net = net.module
+
+    # net.eval()
+    # return net
+        # 处理 DataParallel 保存的模型（带 module. 前缀）
+    
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        name = k[7:] if k.startswith('module.') else k
+        new_state_dict[name] = v
+    state_dict = new_state_dict
+    net.load_state_dict(state_dict)
+
+        # 统一放到 GPU（如果可用）
+    if torch.cuda.is_available():
+        net = net.cuda()
 
     net.eval()
     return net

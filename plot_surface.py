@@ -47,23 +47,34 @@ def name_surface_file(args, dir_file):
 
 
 def setup_surface_file(args, surf_file, dir_file):
-    # skip if the direction file already exists
+    # # skip if the direction file already exists
+    # if os.path.exists(surf_file):
+    #     f = h5py.File(surf_file, 'r')
+    #     if (args.y and 'ycoordinates' in f.keys()) or 'xcoordinates' in f.keys():
+    #         f.close()
+    #         print ("%s is already set up" % surf_file)
+    #         return
+    # 如果文件存在且无法写入，先删除
     if os.path.exists(surf_file):
-        f = h5py.File(surf_file, 'r')
-        if (args.y and 'ycoordinates' in f.keys()) or 'xcoordinates' in f.keys():
-            f.close()
-            print ("%s is already set up" % surf_file)
-            return
+        try:
+            with h5py.File(surf_file, 'r+'):  # 尝试以读写模式打开
+                if (args.y and 'ycoordinates' in f.keys()) or 'xcoordinates' in f.keys():
+                    f.close()
+                    print ("%s is already set up" % surf_file)
+                    return
+        except OSError:
+            print(f"File {surf_file} is locked. Removing it.")
+            os.remove(surf_file)
 
     f = h5py.File(surf_file, 'a')
     f['dir_file'] = dir_file
 
     # Create the coordinates(resolutions) at which the function is evaluated
-    xcoordinates = np.linspace(args.xmin, args.xmax, num=args.xnum)
+    xcoordinates = np.linspace(args.xmin, args.xmax, num=int(args.xnum))
     f['xcoordinates'] = xcoordinates
 
     if args.y:
-        ycoordinates = np.linspace(args.ymin, args.ymax, num=args.ynum)
+        ycoordinates = np.linspace(args.ymin, args.ymax, num=int(args.ynum))
         f['ycoordinates'] = ycoordinates
     f.close()
 
@@ -160,15 +171,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='plotting loss surface')
     parser.add_argument('--mpi', '-m', action='store_true', help='use mpi')
     parser.add_argument('--cuda', '-c', action='store_true', help='use cuda')
-    parser.add_argument('--threads', default=2, type=int, help='number of threads')
-    parser.add_argument('--ngpu', type=int, default=1, help='number of GPUs to use for each rank, useful for data parallel evaluation')
-    parser.add_argument('--batch_size', default=128, type=int, help='minibatch size')
+    parser.add_argument('--threads', default=8, type=int, help='number of threads')
+    parser.add_argument('--ngpu', type=int, default=2, help='number of GPUs to use for each rank, useful for data parallel evaluation')
+    parser.add_argument('--batch_size', default=1024, type=int, help='minibatch size')
 
     # data parameters
     parser.add_argument('--dataset', default='cifar10', help='cifar10 | imagenet')
     parser.add_argument('--datapath', default='cifar10/data', metavar='DIR', help='path to the dataset')
     parser.add_argument('--raw_data', action='store_true', default=False, help='no data preprocessing')
-    parser.add_argument('--data_split', default=1, type=int, help='the number of splits for the dataloader')
+    parser.add_argument('--data_split', default=8, type=int, help='the number of splits for the dataloader')
     parser.add_argument('--split_idx', default=0, type=int, help='the index of data splits for the dataloader')
     parser.add_argument('--trainloader', default='', help='path to the dataloader with random labels')
     parser.add_argument('--testloader', default='', help='path to the testloader with random labels')
@@ -243,10 +254,16 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     net = model_loader.load(args.dataset, args.model, args.model_file)
     w = net_plotter.get_weights(net) # initial parameters
+    # device = next(net.parameters()).device  # 获取模型所在设备
     s = copy.deepcopy(net.state_dict()) # deepcopy since state_dict are references
-    if args.ngpu > 1:
-        # data parallel with multiple GPUs on a single node
-        net = nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
+
+    print(f"net device: {next(net.parameters()).device}")
+    print(f"w device: {w[0].device}")
+    first_s_tensor = next(iter(s.values()))
+    print(f"s device: {first_s_tensor.device}")
+    # if args.ngpu > 1:
+    #     # data parallel with multiple GPUs on a single node
+    #     net = nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
 
     #--------------------------------------------------------------------------
     # Setup the direction file and the surface file

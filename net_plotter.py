@@ -17,7 +17,6 @@ def get_weights(net):
     """ Extract parameters from net, and return a list of tensors"""
     return [p.data for p in net.parameters()]
 
-
 def set_weights(net, weights, directions=None, step=None):
     """
         Overwrite the network's weights with a specified list of tensors
@@ -70,7 +69,8 @@ def get_random_weights(weights):
         Produce a random direction that is a list of random Gaussian tensors
         with the same shape as the network's weights, so one direction entry per weight.
     """
-    return [torch.randn(w.size()) for w in weights]
+    # return [torch.randn(w.size()) for w in weights]
+    return [torch.randn_like(w) for w in weights]
 
 
 def get_random_states(states):
@@ -79,7 +79,7 @@ def get_random_states(states):
         with the same shape as the network's state_dict(), so one direction entry
         per weight, including BN's running_mean/var.
     """
-    return [torch.randn(w.size()) for k, w in states.items()]
+    return [torch.randn_like(w) for k, w in states.items()]
 
 
 def get_diff_weights(weights, weights2):
@@ -134,7 +134,13 @@ def normalize_directions_for_weights(direction, weights, norm='filter', ignore='
         The normalization scales the direction entries according to the entries of weights.
     """
     assert(len(direction) == len(weights))
+    device = weights[0].device
+    direction =[ x.to(device) for x in direction]
+    i=1
     for d, w in zip(direction, weights):
+        if i==1:
+            print(f"d.device={d.device}, w.device={w.device}")
+            i-=1
         if d.dim() <= 1:
             if ignore == 'biasbn':
                 d.fill_(0) # ignore directions for weights with 1 dimension
